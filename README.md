@@ -1,7 +1,7 @@
 # TensorRTS_Selfplay
 An implementation of TensorRTS from PA4 in the RL4SE repo from drchangliu
 
-# Setting Up:
+# Setting Up
 After cloning the repo, make sure to run on Python 3.8. This can be done with the following command if conda is installed:
 ```
 conda create -n ENN python=3.8
@@ -18,7 +18,7 @@ If there is a checkpoint saved in the directory `checkpoints`, you can also run 
 ```
 python TensorRTS_Selfplay.py
 ```
-# Training:
+# Training
 The initial round of training will be performed against a built-in Rush AI. The length of the training can be changed by editing the file `config.ron`. In order to train against this AI, run the following command:
 ```
 python train.py --config=config.ron --checkpoint-dir=checkpoints
