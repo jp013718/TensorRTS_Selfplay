@@ -4,7 +4,7 @@ An implementation of TensorRTS from PA4 in the RL4SE repo from drchangliu
 # Setting Up:
 After cloning the repo, make sure to run on Python 3.8. This can be done with the following command if conda is installed:
 
-`conda create -n ENN python=3.8
+`conda create -n ENN python=3.8 \n
 conda activate ENN`
 
 Once the environment is activated, install entity-gym and enn-trainer following the steps [here](https://github.com/entity-neural-network/entity-gym) and [here](https://github.com/entity-neural-network/enn-trainer).
