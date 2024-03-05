@@ -72,12 +72,11 @@ class TensorRTS_SelfPlay(TensorRTS):
   """
   def opponent_act(self):
     action, predicted_return = self.opp_ai.act(self.opp_observe())
+    print(action)
     action = action["Move"]
-    self.advantage = [1, 1]
     assert isinstance(action, GlobalCategoricalAction)
 
     if action.label == "advance":
-      self.advantage[0] = self.attack_adv
       for _ in range(self.attack_speed):
         if self.tensors[1][0] > 0:
           self.tensors[1][0] -= 1

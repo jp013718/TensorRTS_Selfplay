@@ -65,8 +65,6 @@ LinearRTS, the first epoch of TensorRTS, is intended to be the simplest RTS game
         self.tensors = [[position, 1, 2, 0], [self.mapsize - position - 1, 1, 2, 0]]
         # Starting positions are added for TP calculation
         self.starts = (self.tensors[0][0], self.tensors[1][0])
-        # Attacker advantage is tracked and initialized
-        self.advantage = [1, 1]
         self.print_universe()
 
         return self.observe()
@@ -74,9 +72,9 @@ LinearRTS, the first epoch of TensorRTS, is intended to be the simplest RTS game
     def tensor_power(self, tensor_index) -> float :
         # A better tensor power calculation may be possible that doesn't depend heavily on whether the unit starts on the left or right
         if tensor_index == 0:
-            f = self.tensors[tensor_index][3] * (1 + (self.tensors[tensor_index][0]-(self.starts[1]-self.starts[0])/2)/self.mapsize)*self.advantage[tensor_index]
+            f = self.tensors[tensor_index][3] * (1 + (self.tensors[tensor_index][0]-(self.starts[1]-self.starts[0])/2)/self.mapsize*self.attack_adv)
         else:
-            f = self.tensors[tensor_index][3] * (1 + ((self.starts[1]-self.starts[0])/2-self.tensors[tensor_index][0])/self.mapsize)*self.advantage[tensor_index]
+            f = self.tensors[tensor_index][3] * (1 + ((self.starts[1]-self.starts[0])/2-self.tensors[tensor_index][0])/self.mapsize*self.attack_adv)
         print(f"TP({tensor_index})=TP({self.tensors[tensor_index]})={f}")
         return f
 
@@ -106,14 +104,8 @@ LinearRTS, the first epoch of TensorRTS, is intended to be the simplest RTS game
 
     def act(self, actions: Mapping[ActionName, Action], trigger_default_opponent_action : bool = True) -> Observation:
         action = actions["Move"]
-        # When each action is taken, reset the advantage factor. This ensures that an attacker advantage will only apply
-        # at the time of the advance and does not persist beyond that
-        self.advantage = [1, 1]
         assert isinstance(action, GlobalCategoricalAction)
         if action.label == "advance":
-            # If the unit attacks, set the opposing unit's advantage equal to the attack advantage factor (this name may be misleading,
-            # but the "attack advantage" actually gives the defender a disadvantage)
-            self.advantage[1] = self.attack_adv
             # Move forward as many times as the attack speed is set to
             for _ in range(self.attack_speed):
               if self.tensors[0][0] < self.mapsize:

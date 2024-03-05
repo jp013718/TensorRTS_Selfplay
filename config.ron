@@ -9,4 +9,6 @@ Config(
         bs: 512,
         lr: 0.005,
     ),
+    wandb_project_name: "TensorRTS_ENN",
+    wandb_entity: "jp4"
 )
