@@ -1,1 +1,1 @@
-
+This is a bot trained on selfplay in the TensorRTS environment. It inherits from the `Agent` class in `TensorRTS.py` and loads an algorithm checkpoint from the directory `neutron_checkpoint`, which it expects to find in the same directory. In order to run the agent using `tournament_runner.py`, the entire directory should be added to a directory named `bots`, as that is where `tournament_runner.py` searches.
