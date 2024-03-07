@@ -16,8 +16,38 @@ class NeutronBot(Agent):
     self.games = 0
 
   def take_turn(self, current_game_state: Observation) -> Mapping[ActionName, Action]:
-    action, predicted_return = self.agent.act(current_game_state)
-    return action
+    if self.is_player_one:
+      action, predicted_return = self.agent.act(current_game_state)
+      return action
+    elif self.is_player_two:
+      entities = current_game_state.entities
+      actions = current_game_state.actions
+      done = current_game_state.done
+      reward = current_game_state.reward
+
+      clusters = entities["Cluster"]
+      tensors = entities["Tensor"]
+
+      opp_clusters = [[32-i-1, j] for i, j in clusters]
+      opp_tensors = [[32-i-1, j, k, l] for i, j, k, l in tensors]
+
+      opp_obs = Observation(
+        entities={
+          "Cluster": (
+            opp_clusters,
+            [("Cluster", i) for i in range(len(opp_clusters))]
+          ),
+          "Tensor": (
+            opp_tensors,
+            [("Tensor", i) for i in range(len(opp_tensors))]
+          )
+        },
+        actions=actions,
+        done=done,
+        reward=reward
+      )
+
+      action, predicted_return = self.agent.act(current_game_state)
   
   def on_game_start(self) -> None:
     return super().on_game_start()
