@@ -20,7 +20,7 @@ class NeutronBot(Agent):
       action, predicted_return = self.agent.act(current_game_state)
       return action
     elif self.is_player_two:
-      entities = current_game_state.entities
+      entities = current_game_state.features
       actions = current_game_state.actions
       done = current_game_state.done
       reward = current_game_state.reward
