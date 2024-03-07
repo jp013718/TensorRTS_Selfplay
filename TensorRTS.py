@@ -216,10 +216,13 @@ class Agent(metaclass=abc.ABCMeta):
         pass
 
     @abc.abstractmethod
-    def on_game_start(self) -> None: 
+    def on_game_start(self, is_player_one: bool, is_player_two: bool) -> None: 
         """Function which is called for the agent before the game begins.
         """
-        pass
+        assert (is_player_one == True or is_player_two == True)
+
+        self.is_player_one = is_player_one
+        self.is_player_two = is_player_two
 
     @abc.abstractmethod
     def on_game_over(self, did_i_win : bool, did_i_tie : bool) -> None:
@@ -276,9 +279,9 @@ class GameRunner():
         assert(self.player_one is not None)
 
         game_state = self.game.observe()
-        self.player_one.on_game_start()
+        self.player_one.on_game_start(is_player_one=True, is_player_two=False)
         if self.player_two is not None: 
-            self.player_two.on_game_start()
+            self.player_two.on_game_start(is_player_one=False, is_player_two=True)
 
         while(self.game.is_game_over is False):
             #take moves and pass updated environments to agents

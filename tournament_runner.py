@@ -15,6 +15,27 @@ from entity_gym.env import *
 NUM_GAMES_PER_ROUND = 3
 NUM_GAMES_WIN_BY_TO_VICTORY = 1
 
+class Incompatability_Exception(Exception): 
+    def __init__(self, script_root_dir : str, root_message : str, missing_script : bool, missing_name_hook : bool, missing_agent_hook : bool) -> None:
+        assert(missing_script != None or missing_name_hook != None or missing_agent_hook != None)
+
+        self.missing_name_hook = missing_name_hook
+        self.missing_agent_hook = missing_agent_hook
+        self.script_root_dir = script_root_dir
+
+        self.root_message = root_message
+
+        full_message = ''
+        if missing_script:
+            full_message = f'An error occurred while loading agent in directory: {script_root_dir} - Reson: Missing script file'
+        elif missing_agent_hook:
+            full_message = f'An error occurred while loading agent in directory: {script_root_dir} - Reason: Missing agent_hook function'
+        elif missing_name_hook:
+            full_message = f'An error occurred while loading agent in directory: {script_root_dir} - Reason: Missing student_name_hook function'
+
+        super().__init__(full_message)
+
+
 class Bot(): 
 
     def load_module(path_to_script):
@@ -25,26 +46,51 @@ class Bot():
         """
 
         #load module
-        spec = importlib.util.spec_from_file_location('agent_hook', bot_script)
+        spec = importlib.util.spec_from_file_location('agent_hook', path_to_script)
         module = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(module)
 
         return module
     
-    def load_student_name(path) -> str:
-        spec = importlib.util.spec_from_file_location('student_name_hook', bot_script)
+    def load_student_name(path_to_script) -> str:
+        spec = importlib.util.spec_from_file_location('student_name_hook', path_to_script)
         module = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(module)
 
         return module.student_name_hook()
     
+    def find_bot_script(directory) -> str: 
+        #find script
+        bot_script = None
+
+        for ele in os.listdir(target_dir): 
+            ele_path = os.path.join(target_dir, ele)
+            if '.py' in os.path.basename(ele_path) and '__init__.py' not in ele_path:
+                return ele_path
+
+        return None
+    
     def create_instance(self, init_observation : Observation, action_space : Dict[ActionName, ActionSpace]) -> Agent: 
         return self.agent_module.agent_hook(init_observation, action_space)
 
-    def __init__(self, path_to_agent_script : str) -> None:
-        self.agent_module = Bot.load_module(path_to_agent_script)
-        self.student_name : str = Bot.load_student_name(path_to_agent_script)
-        self.path_to_agent_script = path_to_agent_script
+    def __init__(self, bot_dir : str) -> None:
+        self.agent_module = None
+        self.student_name = None
+
+        path_to_agent_script = Bot.find_bot_script(bot_dir)
+        if path_to_agent_script is None: 
+            raise Incompatability_Exception(root_message="Failed to find bot script.", script_root_dir=bot_dir, missing_script=True, missing_agent_hook=False, missing_name_hook=True)
+
+        try:
+            self.agent_module = Bot.load_module(path_to_agent_script)
+        except Exception as ex:
+            raise Incompatability_Exception(root_message=repr(ex), script_root_dir=bot_dir, missing_script=False, missing_agent_hook=True, missing_name_hook = True)
+
+        try:
+            self.student_name : str = Bot.load_student_name(path_to_agent_script)
+        except Exception as ex: 
+            raise Incompatability_Exception(root_message=repr(ex), script_root_dir=bot_dir, missing_script=False, missing_agent_hook=False, missing_name_hook=True)
+
 
 class Matchup(): 
     def __init__(self, first_bot : Bot, second_bot : Bot) -> None:
@@ -183,7 +229,7 @@ class Tournament():
 
     def print_results(self) -> None: 
         results : list[str] = []
-        results.append('-Beginning Tournament Prinout-')
+        results.append('-Beginning Tournament Prin Out-')
         results.append("Tournament Settings: ")
         results.append(f'Winner: {self.winner.student_name}')
         results.append(f'\tNumber of games in each match: {self.num_rounds_per_match}')
@@ -209,6 +255,7 @@ game_runner = GameRunner(enable_printouts=False)
 
 if __name__ == "__main__":
     bots : List[Bot] = []
+    compatibility_issues = []
 
     bot_root = os.path.join(os.getcwd(), "bots")
 
@@ -220,22 +267,21 @@ if __name__ == "__main__":
         bot_script = None
         target_dir = os.path.join(bot_root, path)
 
-        #find script
-        for ele in os.listdir(target_dir): 
-            ele_path = os.path.join(target_dir, ele)
-            if '.py' in os.path.basename(ele_path) and '__init__.py' not in ele_path:
-                bot_script = ele_path
-                break
-        
-        if bot_script is None: 
-            print(f'Failed to find script within provided directory - {path}')
-            exit()
-  
-        #create bot 
-        new_bot = Bot(bot_script)
-        assert(new_bot is not None)
-        bots.append(new_bot)
+        try:
+            new_bot = Bot(target_dir)
+            bots.append(new_bot)
+        except Incompatability_Exception as ex:
+            compatibility_issues.append(ex)
 
-    tournament = Tournament(bots, NUM_GAMES_PER_ROUND, NUM_GAMES_WIN_BY_TO_VICTORY)
-    tournament.run()
-    tournament.print_results()
+    if len(compatibility_issues) != 0:
+        print('Issues found while loading agents...')
+        for issue in compatibility_issues:
+            print(f'{repr(issue)}')
+
+    if len(bots) != 0:
+        tournament = Tournament(bots, NUM_GAMES_PER_ROUND, NUM_GAMES_WIN_BY_TO_VICTORY)
+        tournament.run()
+        tournament.print_results()
+    else:
+        print('No compatible bots found for tournament')
+        exit()
