@@ -17,22 +17,18 @@ LinearRTS, the first epoch of TensorRTS, is intended to be the simplest RTS game
         nclusters: int = 6,
         ntensors: int = 2,
         maxdots: int = 9,
-        attack_speed: int = 2,
-        e_to_m: float = 0.2,
-        boom_factor: float = 0.2,
-        attack_adv: float = 0.8
+        enable_prinouts : bool = True
     ):
-        print(f"LinearRTS -- Mapsize: {mapsize}")
+        self.enable_printouts = enable_prinouts
+        
+        if self.enable_printouts:
+            print(f"LinearRTS -- Mapsize: {mapsize}")
+
         self.mapsize = mapsize
         self.maxdots = maxdots
         self.nclusters = nclusters
         self.clusters: List[List[int]] = []  # The inner list has a size of 2 (position, number of dots).
         self.tensors: List[List[int ]] = [] # The inner list has a size of 4 (position, dimension, x, y).
-        # Adjustable parameters for game balance. Default values are as given in PA4 on GitHub
-        self.attack_speed = attack_speed
-        self.e_to_m = e_to_m
-        self.boom_factor = boom_factor
-        self.attack_adv = attack_adv
 
     def obs_space(cls) -> ObsSpace:
         return ObsSpace(
@@ -63,19 +59,16 @@ LinearRTS, the first epoch of TensorRTS, is intended to be the simplest RTS game
  
         position = random.randint(0, self.mapsize // 2)
         self.tensors = [[position, 1, 2, 0], [self.mapsize - position - 1, 1, 2, 0]]
-        # Starting positions are added for TP calculation
-        self.starts = (self.tensors[0][0], self.tensors[1][0])
-        self.print_universe()
+
+        if self.enable_printouts:
+            self.print_universe()
 
         return self.observe()
     
     def tensor_power(self, tensor_index) -> float :
-        # A better tensor power calculation may be possible that doesn't depend heavily on whether the unit starts on the left or right
-        if tensor_index == 0:
-            f = self.tensors[tensor_index][3] * (1 + (self.tensors[tensor_index][0]-(self.starts[1]-self.starts[0])/2)/self.mapsize*self.attack_adv)
-        else:
-            f = self.tensors[tensor_index][3] * (1 + ((self.starts[1]-self.starts[0])/2-self.tensors[tensor_index][0])/self.mapsize*self.attack_adv)
-        print(f"TP({tensor_index})=TP({self.tensors[tensor_index]})={f}")
+        f = self.tensors[tensor_index][3] * self.tensors[tensor_index][3] +  self.tensors[tensor_index][2]
+        if self.enable_printouts:
+            print(f"TP({tensor_index})=TP({self.tensors[tensor_index]})={f}")
         return f
 
     def observe(self) -> Observation:
@@ -102,59 +95,44 @@ LinearRTS, the first epoch of TensorRTS, is intended to be the simplest RTS game
             reward=reward,
         )
 
-    def act(self, actions: Mapping[ActionName, Action], trigger_default_opponent_action : bool = True) -> Observation:
+    def act(self, actions: Mapping[ActionName, Action], trigger_default_opponent_action : bool = True, is_player_two : bool = False) -> Observation:
         action = actions["Move"]
+
+        player_tensor = self.tensors[0]
+        if is_player_two:
+            player_tensor = self.tensors[1]
+
         assert isinstance(action, GlobalCategoricalAction)
-        if action.label == "advance":
-            # Move forward as many times as the attack speed is set to
-            for _ in range(self.attack_speed):
-              if self.tensors[0][0] < self.mapsize:
-                self.tensors[0][0] += 1
-                self.tensors[0][2] += self.collect_dots(self.tensors[0][0])
-        elif action.label == "retreat" and self.tensors[0][0] > 0:
-            self.tensors[0][0] -= 1
-            self.tensors[0][2] += self.collect_dots(self.tensors[0][0])
-        # Conversion rates are applied to boom and rush if the conversion rate is greater than 1
+        if action.label == "advance" and self.tensors[0][0] < self.mapsize:
+            player_tensor[0] += 1
+            player_tensor[2] += self.collect_dots(player_tensor[0])
+        elif action.label == "retreat" and player_tensor[0] > 0:
+            player_tensor[0] -= 1
+            player_tensor[2] += self.collect_dots(player_tensor[0])
         elif action.label == "boom":
-            if int(self.boom_factor * self.tensors[0][2]) > 1:
-                self.tensors[0][2] += int(self.boom_factor * self.tensors[0][2])
-            else:
-                self.tensors[0][2] += 1
+            player_tensor[2] += 1
         elif action.label == "rush":
-            if self.tensors[0][2] >= 1:
-                if int(self.e_to_m * self.tensors[0][2]) > 1:
-                    self.tensors[0][1] = 2
-                    self.tensors[0][2] -= int(self.e_to_m * self.tensors[0][2])
-                    self.tensors[0][3] += int(self.e_to_m * self.tensors[0][2])
-                else:
-                    self.tensors[0][1] = 2 # the number of dimensions is now 2
-                    self.tensors[0][2] -= 1
-                    self.tensors[0][3] += 1
+            if player_tensor[2] >= 1:
+                player_tensor[1] = 2 # the number of dimensions is now 2
+                player_tensor[2] -= 1
+                player_tensor[3] += 1
 
         if trigger_default_opponent_action:
             self.opponent_act()
         
-        self.print_universe()
+        if self.enable_printouts:
+            self.print_universe()
 
         return self.observe()
 
     def opponent_act(self):         # This is the rush AI.
-        self.advantage = [1, 1]
         if self.tensors[1][2]>0 :   # Rush if possile
-            if int(self.e_to_m * self.tensors[1][2]) > 1:
-                self.tensors[1][1] = 2
-                self.tensors[1][2] -= int(self.e_to_m * self.tensors[1][2])
-                self.tensors[1][3] += int(self.e_to_m * self.tensors[1][2])
-            else:
-                self.tensors[1][2] -= 1
-                self.tensors[1][3] += 1
-                self.tensors[1][1] = 2      # the number of dimensions is now 2
+            self.tensors[1][2] -= 1
+            self.tensors[1][3] += 1
+            self.tensors[1][1] = 2      # the number of dimensions is now 2
         else:                       # Otherwise Advance.
-            self.advantage[0] = self.attack_adv
-            for _ in range(self.attack_speed):
-                if self.tensors[1][0] > 0:
-                    self.tensors[1][0] -= 1
-                    self.tensors[1][2] += self.collect_dots(self.tensors[1][0])
+            self.tensors[1][0] -= 1
+            self.tensors[1][2] += self.collect_dots(self.tensors[1][0])
 
         return self.observe()
 
@@ -209,13 +187,14 @@ class Interactive_TensorRTS(TensorRTS):
         mapsize: int = 32,
         nclusters: int = 6,
         ntensors: int = 2,
-        maxdots: int = 9): 
+        maxdots: int = 9, 
+        enable_printouts : bool = True): 
         self.is_game_over = False
 
-        super().__init__(mapsize, nclusters, ntensors, maxdots)
+        super().__init__(mapsize, nclusters, ntensors, maxdots, enable_prinouts=enable_printouts)
 
-    def act(self, actions: Mapping[ActionName, Action],  trigger_default_opponent_action : bool = True) -> Observation:
-        obs_result = super().act(actions, False)
+    def act(self, actions: Mapping[ActionName, Action],  trigger_default_opponent_action : bool = True, is_player_two : bool = False, print_universe : bool = False) -> Observation:
+        obs_result = super().act(actions, False, is_player_two)
 
         if (obs_result.done == True):
             self.is_game_over = True
@@ -243,7 +222,7 @@ class Agent(metaclass=abc.ABCMeta):
         pass
 
     @abc.abstractmethod
-    def on_game_over(self) -> None:
+    def on_game_over(self, did_i_win : bool, did_i_tie : bool) -> None:
         """Function which is called for the agent once the game is over.
 
         Args:
@@ -269,24 +248,23 @@ class Random_Agent(Agent):
     def on_game_start(self) -> None:
         return super().on_game_start()
     
-    def on_game_over(self) -> None:
-        return super().on_game_over()
+    def on_game_over(self, did_i_win : bool, did_i_tie : bool) -> None:
+        return super().on_game_over(did_i_win, did_i_tie)
+
+class GameResult():
+    def __init__(self, player_one_win : bool = False, player_two_win : bool = False, tie : bool = False):
+        self.player_one_win = player_one_win
+        self.player_two_win = player_two_win
+        self.tie = tie
 
 class GameRunner(): 
-    def __init__(self, environment = None):
-        self.game = Interactive_TensorRTS()
+    def __init__(self, environment = None, enable_printouts : bool = False):
+        self.game = Interactive_TensorRTS(enable_printouts=enable_printouts)
+        self.game.reset()
 
         self.player_one = None
         self.player_two = None
-
-    def set_new_game(self) -> Observation: 
-        """Resets the environment for a new game
-
-        Returns:
-            Observation: Initial observation for the new game
-        """
-
-        return self.game.reset()
+        self.results : GameResult = None
     
     def assign_players(self, first_agent : Agent, second_agent : Agent = None):
         self.player_one = first_agent
@@ -299,6 +277,8 @@ class GameRunner():
 
         game_state = self.game.observe()
         self.player_one.on_game_start()
+        if self.player_two is not None: 
+            self.player_two.on_game_start()
 
         while(self.game.is_game_over is False):
             #take moves and pass updated environments to agents
@@ -309,19 +289,40 @@ class GameRunner():
                     game_state = self.game.opponent_act()
                 else:
                     #future player_two code
-                    pass
+                    game_state = self.game.act(self.player_two.take_turn(game_state), False, True)
 
-        self.player_one.on_game_over()
+        # who won? 
+        tie = False
+        win_p_one = False
+        win_p_two = False
 
-# if __name__ == "__main__":  # This is to run wth agents
-#     runner = GameRunner()
-#     init_observation = runner.set_new_game()
-#     random_agent = Random_Agent(init_observation, runner.game.action_space())
+        p_one = self.game.tensor_power(0)
+        p_two = self.game.tensor_power(1)
 
-#     runner.assign_players(random_agent)
-#     runner.run()
+        if p_one > p_two: 
+            win_p_one = True
+        elif p_two > p_one:
+            win_p_two = True
+        else:
+            tie = True
+
+        self.results = GameResult(win_p_one, win_p_two, tie)
+        self.player_one.on_game_over(win_p_one, tie)
+        if self.player_two is not None:
+            self.player_two.on_game_over(win_p_two, tie)
+
+if __name__ == "__main__":  # This is to run wth agents
+    runner = GameRunner()
+    init_observation = runner.set_new_game()
+    # random_agent = Random_Agent(init_observation, runner.game.action_space())
+
+    # runner.assign_players(random_agent)
+    from Neutron_Bot.neutron import NeutronBot
+    neutron_agent = NeutronBot(init_observation, runner.game.action_space())
+    runner.assign_players(neutron_agent)
+    runner.run()
     
-if __name__ == "__main__":  #this is to run cli
-    env = TensorRTS()
-    # The `CliRunner` can run any environment with a command line interface.
-    CliRunner(env).run()    
+# if __name__ == "__main__":  #this is to run cli
+#     env = TensorRTS()
+#     # The `CliRunner` can run any environment with a command line interface.
+#     CliRunner(env).run()    
